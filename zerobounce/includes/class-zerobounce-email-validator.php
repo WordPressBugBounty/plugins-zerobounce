@@ -137,13 +137,16 @@ class Zerobounce_Email_Validator
         $this->loader->add_action('admin_init', $plugin_admin, 'registerAndBuildFields');
         $this->loader->add_action('admin_notices', $plugin_admin, 'admin_notice');
         $this->loader->add_action('added_option', $plugin_admin, 'added_option_callback', 10, 2);
-        //$this->loader->add_action('updated_option', $plugin_admin, 'updated_option_callback', 10, 3);
         $this->loader->add_action('wp_ajax_zerobounce_current_credits', $plugin_admin, 'current_credits');
         $this->loader->add_action('wp_ajax_zerobounce_validate_email_test', $plugin_admin, 'validate_email_test');
+        $this->loader->add_action('wp_ajax_zerobounce_validate_bulk_test', $plugin_admin, 'validate_bulk_test');
         $this->loader->add_action('wp_ajax_zerobounce_validation_logs', $plugin_admin, 'validation_logs');
         $this->loader->add_action('wp_ajax_zerobounce_credit_usage_logs', $plugin_admin, 'credit_usage_logs');
         $this->loader->add_action('wp_ajax_zerobounce_validation_full_logs', $plugin_admin, 'validation_full_logs');
         $this->loader->add_action('wp_ajax_zerobounce_validation_single_log', $plugin_admin, 'validation_single_log');
+        $this->loader->add_action('wp_ajax_zerobounce_batch_email_validation', $plugin_admin, 'validate_batch');
+        $this->loader->add_action('wp_ajax_zerobounce_get_uploaded_file_data', $plugin_admin, 'get_uploaded_file_data');
+        $this->loader->add_action('wp_ajax_zerobounce_validated_emails_download', $plugin_admin, 'validated_emails_download');
     }
 
     /**

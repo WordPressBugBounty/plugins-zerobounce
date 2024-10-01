@@ -26,7 +26,7 @@
             <span id="zb-current-credits"><div id="zb-current-credits-loader" class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">0</span></div></span>&nbsp;<span><?php _e('credits', 'zerobounce-email-validator') ?></span>
             <span class="dashicons dashicons-info-outline" style="vertical-align: middle !important; font-size: 1rem !important;" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="<?php _e('Credits can be used for either validation or scoring. 1 credit = 1 successfully processed email address.', 'zerobounce-email-validator') ?>"></span>
             <a href="https://www.zerobounce.net/members/pricing" class="btn btn-warning border-0 fw-bold" target="_blank" title="<?php _e('Buy Credits', 'zerobounce-email-validator') ?>"><?php _e('Buy Credits', 'zerobounce-email-validator') ?></a>
-        </div>    
+        </div>
       </div>
     </div>
   </header>
@@ -35,9 +35,9 @@
       <div id="verifyEmailsChart" name="verifyEmailsChart" style="min-height: 365px;"></div>
     </div>
   </div>
-  <div class="card rounded-0 p-3">
-    <div class="card-body">     
-      <div id="creditUsageChart" name="creditUsageChart" style="min-height: 365px;"></div> 
-    </div>
-  </div>
+<!--  <div class="card rounded-0 p-3">-->
+<!--    <div class="card-body">     -->
+<!--      <div id="creditUsageChart" name="creditUsageChart" style="min-height: 365px;"></div> -->
+<!--    </div>-->
+<!--  </div>-->
 </div>

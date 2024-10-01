@@ -147,7 +147,7 @@ class Zerobounce_Email_Validator_Public
     {
         foreach ($form_data['fields'] as $key => $field) {
             $value = $field['value'];
-            if (!empty($value) && is_string($value) && preg_match('/@.+\./', $value) && !str_contains($value, "\n") && !str_contains($value, '\n')) {
+            if (!empty($value) && is_string($value) && preg_match('/@.+\./', $value) && !preg_match('/mailto:/i', $value)) {
                 $ninjaForm = new Zerobounce_Email_Validator_Form_Public('ninjaforms', $form_data['id']);
                 $validationInfo = $ninjaForm->prep_validation_info($value);
                 $message = $ninjaForm->set_error_message($validationInfo['did_you_mean']);

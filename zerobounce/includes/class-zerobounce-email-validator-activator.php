@@ -49,9 +49,9 @@ class Zerobounce_Email_Validator_Activator
 
     public static function setup_site_table($id): void
     {
-        switch_to_blog( $id );
-        self::create_credit_usage_logs();
+        switch_to_blog($id);
         self::create_validation_logs();
+        self::create_bulk_file_validation();
         restore_current_blog();
     }
 
@@ -63,29 +63,29 @@ class Zerobounce_Email_Validator_Activator
                 self::setup_site_table($site->blog_id);
             }
         } else {
-            self::create_credit_usage_logs();
             self::create_validation_logs();
+            self::create_bulk_file_validation();
         }
     }
 
-    private static function create_credit_usage_logs(): void
-    {
-        global $wpdb;
-
-        $charset_collate = $wpdb->get_charset_collate();
-        $table_name = $wpdb->prefix . 'zerobounce_credit_usage_logs';
-
-        $sql = "CREATE TABLE $table_name (
-    		id mediumint(9) NOT NULL AUTO_INCREMENT,
-			credits_used mediumint(9) NULL,
-    		date date DEFAULT '0000-00-00' NOT NULL,
-    		UNIQUE KEY id (id),
-    		UNIQUE KEY `date` (`date`)
-    	) $charset_collate;";
-
-        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-        dbDelta($sql);
-    }
+//    private static function create_credit_usage_logs(): void
+//    {
+//        global $wpdb;
+//
+//        $charset_collate = $wpdb->get_charset_collate();
+//        $table_name = $wpdb->prefix . 'zerobounce_credit_usage_logs';
+//
+//        $sql = "CREATE TABLE $table_name (
+//    		id mediumint(9) NOT NULL AUTO_INCREMENT,
+//			credits_used mediumint(9) NULL,
+//    		date date DEFAULT '0000-00-00' NOT NULL,
+//    		UNIQUE KEY id (id),
+//    		UNIQUE KEY `date` (`date`)
+//    	) $charset_collate;";
+//
+//        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+//        dbDelta($sql);
+//    }
 
     private static function create_validation_logs(): void
     {
@@ -110,4 +110,25 @@ class Zerobounce_Email_Validator_Activator
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql);
     }
+
+    private static function create_bulk_file_validation()
+    {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . 'zerobounce_file_bulk_validation';
+        $charset_collate = $wpdb->get_charset_collate();
+
+        $sql = "CREATE TABLE $table_name (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            file_name varchar(255) NOT NULL,
+            file_id varchar(255) NOT NULL,
+            validation_status varchar(100) NOT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            PRIMARY KEY (id)
+        ) $charset_collate;";
+
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+
 }

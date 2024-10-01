@@ -71,3 +71,93 @@
     max-width: 100%;
     width: 350px;
 }
+
+.zerobounce-bulk-validator label {
+    font-size: 12px;
+}
+
+.zerobounce-upload-section {
+    width: 100%;
+    border: 2px dashed #2271b1;
+    text-align: center;
+    border-radius: .25rem;
+}
+
+.zerobounce-upload-section label {
+    text-align: center;
+    padding: .5rem 2rem;
+    color: white;
+    font-weight: bold;
+    background-color: #2271b1;
+    border-radius: .25rem;
+    cursor: pointer;
+}
+
+.zerobounce-upload-section .remove-button {
+    background-color: transparent;
+    border: 0;
+    padding: 0;
+    margin-left: .5rem;
+    color: red;
+    font-size: 1.2rem;
+    font-weight: bold;
+    line-height: 1rem;
+}
+
+.zerobounce-bulk-validator-results {
+
+}
+
+.zb-loader-overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.8); /* Semi-transparent overlay */
+    display: none; /* Hidden by default */
+    justify-content: center;
+    align-items: center;
+    z-index: 9999; /* Ensure the overlay is on top */
+}
+
+.zb-loader {
+    margin: 13% auto;
+    border: 8px solid #f3f3f3;
+    border-radius: 50%;
+    border-top: 8px solid #3498db;
+    width: 60px;
+    height: 60px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+#bulk-validation-form {
+    position: relative;
+}
+
+.error-header {
+    background-color: #dc3545;
+    color: white;
+}
+
+.success-header {
+    background-color: #28a745;
+    color: white;
+}
+
+.modal-footer.bulk {
+    border-top: 0;
+}
+
+.small-pagination .page-link {
+    font-size: 12px; /* Reduce font size */
+    padding: 4px 8px; /* Smaller padding for buttons */
+}
+
+.small-pagination .page-item {
+    margin: 0 2px; /* Smaller gap between buttons */
+}

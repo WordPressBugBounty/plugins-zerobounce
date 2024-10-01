@@ -1,7 +1,7 @@
-(function($) {
+(function ($) {
     'use strict';
 
-    $(function() {
+    $(function () {
 
         $('#validate-form').prop('disabled', false);
 
@@ -9,29 +9,34 @@
         tooltipelements.forEach((el) => {
             new bootstrap.Tooltip(el);
         });
-        
+
         if ($("#zb-current-credits").length > 0) {
             $.ajax({
-                    data: {
-                        'action': 'zerobounce_current_credits',
-                        'nonce': params.ajax_current_credits_nonce
-                    },
-                    dataType: 'json',
-                    url: params.ajax_url,
-                    type: 'POST',
-                })
-                .done(function(response) {
+                data: {
+                    'action': 'zerobounce_current_credits',
+                    'nonce': params.ajax_current_credits_nonce
+                },
+                dataType: 'json',
+                url: params.ajax_url,
+                type: 'POST',
+            })
+                .done(function (response) {
                     $("#zb-current-credits").text(response.data);
                 })
-                .fail(function(jqXHR, textStatus) {
+                .fail(function (jqXHR, textStatus) {
                     console.log(jqXHR.responseJSON.data.reason);
                 })
-                .always(function() {
+                .always(function () {
                     $("#zb-current-credits-loader").remove();
                 });
         }
 
-        $('#validate-form').submit(function(event) {
+
+        $('#bulk-validation-form').submit(function (event) {
+        });
+
+
+        $('#validate-form').submit(function (event) {
             event.preventDefault();
 
             var ajax_form_data = $("#validate-form").serializeArray();
@@ -40,16 +45,16 @@
             $('#submit').val("Please wait...");
 
             $.ajax({
-                    data: {
-                        'action': 'zerobounce_validate_email_test',
-                        'email': ajax_form_data[0].value,
-                        'nonce': params.ajax_validation_nonce
-                    },
-                    dataType: 'json',
-                    url: params.ajax_url,
-                    type: 'POST',
-                })
-                .done(function(response) {
+                data: {
+                    'action': 'zerobounce_validate_email_test',
+                    'email': ajax_form_data[0].value,
+                    'nonce': params.ajax_validation_nonce
+                },
+                dataType: 'json',
+                url: params.ajax_url,
+                type: 'POST',
+            })
+                .done(function (response) {
                     $('#validate-form-result .text-danger').text('');
                     if ($("#verifyEmailResult").length === 0) {
                         $('#validate-form-result').append(`<table id="verifyEmailResult">
@@ -150,9 +155,10 @@
                         $("#verifyEmailProcessedAt").text(response.data.processed_at);
                     }
                 })
-                .fail(function(jqXHR, textStatus) {
-                    $('#validate-form-result .text-danger').text(jqXHR.responseJSON.data.reason);})
-                .always(function() {
+                .fail(function (jqXHR, textStatus) {
+                    $('#validate-form-result .text-danger').text(jqXHR.responseJSON.data.reason);
+                })
+                .always(function () {
                     event.target.reset();
                     $('#submit').val("Validate");
                     $('#submit').prop('disabled', false);
@@ -233,19 +239,19 @@
             };
 
             $.ajax({
-                    data: {
-                        'action': 'zerobounce_validation_logs',
-                        'nonce': params.ajax_validation_charts_nonce
-                    },
-                    dataType: 'json',
-                    url: params.ajax_url,
-                    type: 'POST',
-                })
-                .done(function(response) {
+                data: {
+                    'action': 'zerobounce_validation_logs',
+                    'nonce': params.ajax_validation_charts_nonce
+                },
+                dataType: 'json',
+                url: params.ajax_url,
+                type: 'POST',
+            })
+                .done(function (response) {
 
                     var grand_total = 0;
 
-                    $.each(response.data.count, function(index, value) {
+                    $.each(response.data.count, function (index, value) {
 
                         validationsOptions.xaxis.categories.push(value.date);
 
@@ -271,100 +277,100 @@
                         }
                     });
                 })
-                .fail(function(jqXHR, textStatus) {
+                .fail(function (jqXHR, textStatus) {
                     console.log(jqXHR.responseJSON.data.reason);
                 })
-                .always(function() {});
+                .always(function () {
+                });
         }
-
-        if ($("#creditUsageChart").length > 0) {
-            var creditUsageOptions = {
-                series: [{
-                    name: "Credits",
-                    data: []
-                }],
-                chart: {
-                    type: 'area',
-                    height: 350,
-                    zoom: {
-                        enabled: false
-                    }
-                },
-                dataLabels: {
-                    enabled: false
-                },
-                stroke: {
-                    curve: 'straight'
-                },
-
-                title: {
-                    text: 'Credits used this month: ',
-                    align: 'left',
-                    floating: false,
-                    style: {
-                        fontSize: '14px',
-                        fontWeight: 'bold',
-                        fontFamily: undefined,
-                        color: '#263238'
-                    },
-                },
-                subtitle: {
-                    text: 'A credit is used for each validation done using the ZeroBounce API',
-                    align: 'left'
-                },
-                labels: [],
-                xaxis: {
-                    type: 'datetime',
-                },
-                yaxis: {
-                    opposite: true
-                },
-                legend: {
-                    horizontalAlign: 'left'
-                }
-            };
-
-            $.ajax({
-                    data: {
-                        'action': 'zerobounce_credit_usage_logs',
-                        'nonce': params.ajax_credit_usage_charts_nonce
-                    },
-                    dataType: 'json',
-                    url: params.ajax_url,
-                    type: 'POST',
-                })
-                .done(function(response) {
-
-                    var grand_total = 0;
-
-                    $.each(response.data.count, function(index, value) {
-
-                        creditUsageOptions.labels.push(value.date);
-
-                        creditUsageOptions.series[0].data.push(value.credits_used);
-
-                        if (value.credits_used !== 0)
-                            grand_total += value.credits_used;
-                    });
-
-                    var creditUsageChart = new ApexCharts(document.querySelector("#creditUsageChart"), creditUsageOptions);
-                    creditUsageChart.render();
-
-                    creditUsageChart.updateOptions({
-                        title: {
-                            text: 'Credits used this month: ' + grand_total,
-                        }
-                    });
-                })
-                .fail(function(jqXHR, textStatus) {
-                    console.log(jqXHR.responseJSON.data.reason);
-                })
-                .always(function() {});
-        }
+        // Hide credits section
+        // if ($("#creditUsageChart").length > 0) {
+        //     var creditUsageOptions = {
+        //         series: [{
+        //             name: "Credits",
+        //             data: []
+        //         }],
+        //         chart: {
+        //             type: 'area',
+        //             height: 350,
+        //             zoom: {
+        //                 enabled: false
+        //             }
+        //         },
+        //         dataLabels: {
+        //             enabled: false
+        //         },
+        //         stroke: {
+        //             curve: 'straight'
+        //         },
+        //
+        //         title: {
+        //             text: 'Credits used this month: ',
+        //             align: 'left',
+        //             floating: false,
+        //             style: {
+        //                 fontSize: '14px',
+        //                 fontWeight: 'bold',
+        //                 fontFamily: undefined,
+        //                 color: '#263238'
+        //             },
+        //         },
+        //         subtitle: {
+        //             text: 'A credit is used for each validation done using the ZeroBounce API',
+        //             align: 'left'
+        //         },
+        //         labels: [],
+        //         xaxis: {
+        //             type: 'datetime',
+        //         },
+        //         yaxis: {
+        //             opposite: true
+        //         },
+        //         legend: {
+        //             horizontalAlign: 'left'
+        //         }
+        //     };
+        //
+        //     $.ajax({
+        //             data: {
+        //                 'action': 'zerobounce_credit_usage_logs',
+        //                 'nonce': params.ajax_credit_usage_charts_nonce
+        //             },
+        //             dataType: 'json',
+        //             url: params.ajax_url,
+        //             type: 'POST',
+        //         })
+        //         .done(function(response) {
+        //
+        //             var grand_total = 0;
+        //
+        //             $.each(response.data.count, function(index, value) {
+        //
+        //                 creditUsageOptions.labels.push(value.date);
+        //
+        //                 creditUsageOptions.series[0].data.push(value.credits_used);
+        //
+        //                 if (value.credits_used !== 0)
+        //                     grand_total += value.credits_used;
+        //             });
+        //
+        //             var creditUsageChart = new ApexCharts(document.querySelector("#creditUsageChart"), creditUsageOptions);
+        //             creditUsageChart.render();
+        //
+        //             creditUsageChart.updateOptions({
+        //                 title: {
+        //                     text: 'Credits used this month: ' + grand_total,
+        //                 }
+        //             });
+        //         })
+        //         .fail(function(jqXHR, textStatus) {
+        //             console.log(jqXHR.responseJSON.data.reason);
+        //         })
+        //         .always(function() {});
+        // }
 
         if ($("#logsTable").length > 0) {
             var table = $('#logsTable').DataTable({
-                ajax: params.ajax_url,
                 processing: true,
                 serverSide: false,
                 responsive: true,
@@ -379,8 +385,9 @@
                     targets: 7,
                     data: null,
                     defaultContent: '<button type="button" class="btn btn-info text-white">View</button>',
-                }, ],
-                columns: [{
+                },],
+                columns: [
+                    {
                         data: 'id'
                     },
                     {
@@ -412,20 +419,22 @@
 
             new $.fn.dataTable.FixedHeader(table);
 
-            $('#logsTable tbody').on('click', 'button', function() {
-                var data = table.row($(this).parents('tr')).data();
+            $('#logsTable tbody').on('click', 'button', function () {
+                let tr = $(this).closest('tr');
+                let row = table.row(tr.hasClass('parent') ? tr : tr.prev());
+                let data = row.data();
 
                 $.ajax({
-                        data: {
-                            'action': 'zerobounce_validation_single_log',
-                            'id': data.id,
-                            'nonce': params.ajax_validation_single_log_nonce
-                        },
-                        dataType: 'json',
-                        url: params.ajax_url,
-                        type: 'POST',
-                    })
-                    .done(function(response) {
+                    data: {
+                        'action': 'zerobounce_validation_single_log',
+                        'id': data.id,
+                        'nonce': params.ajax_validation_single_log_nonce
+                    },
+                    dataType: 'json',
+                    url: params.ajax_url,
+                    type: 'POST',
+                })
+                    .done(function (response) {
 
                         if ($("#logInspectResult").length === 0) {
                             $('#log-inspect-result').append(`<table id="logInspectResult" class="table table-sm table-hover">
@@ -530,14 +539,227 @@
 
                         $("#logInspectModal").modal('show');
                     })
-                    .fail(function(jqXHR, textStatus) {
+                    .fail(function (jqXHR, textStatus) {
                         console.log(jqXHR.responseJSON.data.reason);
                     })
-                    .always(function() {});
+                    .always(function () {
+                    });
             });
         }
+
+        $('#csvUpload').on('change', function () {
+            let fileName = $(this).val().split('\\').pop();
+            $('#fileName').text(fileName);
+            $('#fileNameDisplay').css('display', 'flex');
+            $('#manual-upload').attr('disabled', true);
+        });
+
+        // Remove file and reset input
+        $('#removeFileBtn').on('click', function () {
+            $('#csvUpload').val('');
+            $('#fileNameDisplay').hide();
+            $('#manual-upload').attr('disabled', false);
+        });
+
+        const setupTextAreaResults = (form, data) => {
+            const emailBatch = data.email_batch;
+            const tableBody = $('#resultsTable tbody');
+
+            tableBody.empty();
+
+            emailBatch.forEach(function (email) {
+                const newRow = '<tr>' +
+                    '<td>' + email.address + '</td>' +
+                    '<td class="text-' + (email.status === 'valid' ? 'success' : 'danger') + ' text-center">' + email.status.charAt(0).toUpperCase() + email.status.slice(1) + '</td>' +
+                    '<td class="text-' + (email.sub_status ? 'info' : 'muted') + ' text-center">' + (email.sub_status ? email.sub_status.charAt(0).toUpperCase() + email.sub_status.slice(1) : '&mdash;') + '</td>' +
+                    '</tr>';
+
+                tableBody.append(newRow);
+            });
+            $(form).find('textarea').val('');
+        }
+
+        const setupFileResults = (form) => {
+            $(form).find("#removeFileBtn").click();
+            $('#successModal .modal-body').text('File upload complete.');
+            $('#successModal').modal('show');
+            getStatus();
+        }
+
+        $("#bulk-validation-form, #bulk-validation-form-manual").submit((event) => {
+            event.preventDefault();
+            const form = event.target;
+            const loader = event.target.querySelectorAll('.zb-loader-overlay')[0];
+            const formData = new FormData(form);
+
+            $(loader).fadeIn();
+
+            formData.append('action', 'zerobounce_batch_email_validation');
+            formData.append('nonce', params.ajax_batch_validation_nonce);
+
+            $.ajax({
+                data: formData,
+                processData: false,
+                contentType: false,
+                dataType: 'json',
+                url: params.ajax_url,
+                type: 'POST',
+                success: function (response) {
+                    if (response.type === "manual" && response.errors && response.errors.length === 0) {
+                        setupTextAreaResults(form, response);
+                    } else if (response.type === "file" && response.success) {
+                        setupFileResults(form);
+                    }
+
+                    if (response.success === false || response.errors && response.errors.length > 0) {
+                        let errorMessage = response.type === "file" ? response.error : response.data.error ?? 'An error occurred during the request. Please try again later.<br/>If the issue persists please contact our support team <a href="mailto:support@zerobounce.net">support@zerobounce.net</a>';
+
+                        $('#errorModal .modal-body').html(errorMessage);
+                        $('#errorModal').modal('show');
+                    }
+
+                    $(loader).fadeOut();
+                },
+                error: function (xhr, status, error) {
+                    $(loader).fadeOut();
+                    $('#errorModal .modal-body').text('Error: ' + status + '. ' + error);
+                    $('#errorModal').modal('show');
+                    console.log('AJAX Error: ', error);
+                },
+            });
+        });
+
+        const generateDownloadLink = (file_id) => {
+            return params.ajax_url + '?action=zerobounce_validated_emails_download&file_id=' + file_id + '&nonce=' + params.ajax_download_validated_file_nonce;
+        }
+
+        const displayFileValidationStatus = (data) => {
+            const tableBody = $('#csv-results tbody');
+
+            tableBody.empty();
+
+            data.forEach(({file_name, file_id, validation_status, created_at}) => {
+                let newRow = '<tr>' +
+                    '<td>' + file_name + '</td>' +
+                    '<td class="text-center">' + created_at.slice(0, created_at.length - 3) + '</td>' +
+                    '<td class="text-center">' + (validation_status === '100%' ? '<a href="' + generateDownloadLink(file_id) + '">Download</a>' : validation_status) + '</td>' +
+                    '</tr>';
+                tableBody.append(newRow);
+            });
+        }
+
+        const getStatus = (page) => {
+            $("#zb-results-loader").show();
+
+            let data = {
+                'action': 'zerobounce_get_uploaded_file_data',
+                'nonce': params.ajax_get_files_info_nonce,
+                'page': page
+            };
+
+            $.ajax({
+                url: params.ajax_url,
+                type: 'POST',
+                data: data,
+                dataType: 'json',
+                success: function (response) {
+                    if (response.success) {
+                        displayFileValidationStatus(response.data);
+                        updatePagination(response.pagination)
+                    } else {
+                        console.error('Error:', response.data.error);
+                    }
+
+                    $("#zb-results-loader").hide();
+                },
+                error: function (jqXHR, textStatus, errorThrown) {
+                    console.error('AJAX Error: ' + textStatus, errorThrown);
+                }
+            });
+        }
+
+        const updatePagination = (pagination) => {
+            let paginationHtml = '';
+
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, pagination.current_page - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(pagination.total_pages, pagination.current_page + Math.floor(maxVisiblePages / 2));
+
+            if (endPage - startPage < maxVisiblePages - 1) {
+                if (pagination.current_page <= Math.floor(maxVisiblePages / 2)) {
+                    endPage = Math.min(pagination.total_pages, startPage + maxVisiblePages - 1);
+                } else if (pagination.total_pages - pagination.current_page < Math.floor(maxVisiblePages / 2)) {
+                    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                }
+            }
+
+            if (pagination.current_page > 1) {
+                paginationHtml += `
+            <li class="page-item">
+                <a class="page-link" href="#" data-page="${pagination.current_page - 1}" aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                </a>
+            </li>`;
+            } else {
+                paginationHtml += `
+            <li class="page-item disabled">
+                <a class="page-link" href="#" aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                </a>
+            </li>`;
+            }
+
+            if (startPage > 1) {
+                paginationHtml += `<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>`;
+                if (startPage > 2) {
+                    paginationHtml += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                if (i === Number(pagination.current_page)) {
+                    paginationHtml += `<li class="page-item active"><a class="page-link" href="#"  aria-disabled="true" data-page="${i}">${i}</a></li>`;
+                } else {
+                    paginationHtml += `<li class="page-item"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
+                }
+            }
+
+            if (endPage < pagination.total_pages) {
+                if (endPage < pagination.total_pages - 1) {
+                    paginationHtml += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+                paginationHtml += `<li class="page-item"><a class="page-link" href="#" data-page="${pagination.total_pages}">${pagination.total_pages}</a></li>`;
+            }
+
+            if (pagination.current_page < pagination.total_pages) {
+                paginationHtml += `
+            <li class="page-item">
+                <a class="page-link" href="#" data-page="${pagination.current_page + 1}" aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                </a>
+            </li>`;
+            } else {
+                paginationHtml += `
+            <li class="page-item disabled">
+                <a class="page-link" href="#" aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                </a>
+            </li>`;
+            }
+
+            $('#pagination').html(paginationHtml);
+
+            $('.page-link').click(function (e) {
+                e.preventDefault();
+                if ($(this).parent().hasClass('active')) {
+                    return;
+                }
+
+                let page = $(this).data('page');
+                getStatus(page);
+            });
+        }
+
+        getStatus(1);
     });
-
-
-
 })(jQuery);
