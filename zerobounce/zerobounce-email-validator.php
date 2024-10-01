@@ -16,7 +16,7 @@
  * Plugin Name:       ZeroBounce Email Validator
  * Plugin URI:        https://wordpress.org/plugins/zerobounce/
  * Description:       ZeroBounce Email Validation Plugin
- * Version:           1.1.0
+ * Version:           1.1.2
  * Author:            ZeroBounce
  * Author URI:        https://www.zerobounce.net/
  * License:           GPL-2.0+
@@ -34,7 +34,7 @@ if (!defined('ZEROBOUNCE_BASENAME')) {
     define('ZEROBOUNCE_BASENAME', plugin_basename(__FILE__));
 }
 
-define('ZEROBOUNCE_EMAIL_VALIDATOR_VERSION', '1.1.0');
+define('ZEROBOUNCE_EMAIL_VALIDATOR_VERSION', '1.1.2');
 
 /**
  * The code that runs during plugin activation.

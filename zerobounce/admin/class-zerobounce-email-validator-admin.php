@@ -150,6 +150,9 @@ class Zerobounce_Email_Validator_Admin
                             'ajax_credit_usage_charts_nonce' => wp_create_nonce('zerobounce-credits-charts-nonce'),
                             'ajax_validation_full_logs_nonce' => wp_create_nonce('zerobounce-full-logs-nonce'),
                             'ajax_validation_single_log_nonce' => wp_create_nonce('zerobounce-single-log-nonce'),
+                            'ajax_batch_validation_nonce' => wp_create_nonce('zerobounce-batch-validation-nonce'),
+                            'ajax_get_files_info_nonce' => wp_create_nonce('zerobounce-get-files-info-nonce'),
+                            'ajax_download_validated_file_nonce' => wp_create_nonce('zerobounce-download-validated-file-nonce'),
                         ]);
                     }
                     break;
@@ -552,14 +555,24 @@ class Zerobounce_Email_Validator_Admin
             ]
         );
 
-        $today = new \DateTime('now');
-        $result = $wpdb->query($wpdb->prepare("UPDATE " . $wpdb->prefix . "zerobounce_credit_usage_logs SET credits_used=credits_used+1 WHERE date='%s'", $today->format("Y-m-d")), ARRAY_A);
+        wp_send_json_success($validation, 200, 0);
+    }
 
-        if ($result === FALSE || $result < 1) {
-            $wpdb->insert($wpdb->prefix . 'zerobounce_credit_usage_logs', ['credits_used' => 1, 'date' => $today->format("Y-m-d")]);
+
+    /**
+     * @return void
+     */
+    public function validate_bulk_test()
+    {
+        global $wpdb;
+
+        if (!wp_verify_nonce($_POST['nonce'], 'zerobounce-bulk-test-nonce')) {
+            wp_send_json_error(['reason' => esc_html__('Request is invalid. Please refresh the page and try again.')], 400, 0);
+            exit();
         }
 
         wp_send_json_success($validation, 200, 0);
+
     }
 
     public function validation_logs()
@@ -603,34 +616,34 @@ class Zerobounce_Email_Validator_Admin
         wp_send_json_success($data, 200, 0);
     }
 
-    public function credit_usage_logs()
-    {
-        global $wpdb;
-
-        if (!wp_verify_nonce($_POST['nonce'], 'zerobounce-credits-charts-nonce')) {
-            wp_send_json_error(['reason' => esc_html__('Request is invalid. Please refresh the page and try again.')], 400, 0);
-            exit();
-        }
-
-        $data = [];
-
-        $firstDay = new \DateTime('first day of this month 00:00:00');
-        $lastDay = new \DateTime('last day of this month 00:00:00');
-
-        $dates = new \DatePeriod(
-            $firstDay,
-            new \DateInterval('P1D'),
-            $lastDay
-        );
-
-        foreach ($dates as $date) {
-            $logs = $wpdb->get_results("SELECT credits_used FROM " . $wpdb->prefix . "zerobounce_credit_usage_logs WHERE date = '" . $date->format("Y-m-d") . "'");
-
-            $data['count'][] = $logs ? ['date' => $date->format("Y-m-d"), 'credits_used' => (int)$logs[0]->credits_used] : ['date' => $date->format("Y-m-d"), 'credits_used' => 0];
-        }
-
-        wp_send_json_success($data, 200, 0);
-    }
+//    public function credit_usage_logs()
+//    {
+//        global $wpdb;
+//
+//        if (!wp_verify_nonce($_POST['nonce'], 'zerobounce-credits-charts-nonce')) {
+//            wp_send_json_error(['reason' => esc_html__('Request is invalid. Please refresh the page and try again.')], 400, 0);
+//            exit();
+//        }
+//
+//        $data = [];
+//
+//        $firstDay = new \DateTime('first day of this month 00:00:00');
+//        $lastDay = new \DateTime('last day of this month 00:00:00');
+//
+//        $dates = new \DatePeriod(
+//            $firstDay,
+//            new \DateInterval('P1D'),
+//            $lastDay
+//        );
+//
+//        foreach ($dates as $date) {
+//            $logs = $wpdb->get_results("SELECT credits_used FROM " . $wpdb->prefix . "zerobounce_credit_usage_logs WHERE date = '" . $date->format("Y-m-d") . "'");
+//
+//            $data['count'][] = $logs ? ['date' => $date->format("Y-m-d"), 'credits_used' => (int)$logs[0]->credits_used] : ['date' => $date->format("Y-m-d"), 'credits_used' => 0];
+//        }
+//
+//        wp_send_json_success($data, 200, 0);
+//    }
 
     public function validation_full_logs()
     {
@@ -851,5 +864,242 @@ class Zerobounce_Email_Validator_Admin
         $escaped = esc_html($sanitized);
 
         return $escaped;
+    }
+
+    /**
+     * @param $table_name
+     * @return void
+     */
+    private function create_file_bulk_validation_table($table_name)
+    {
+        global $wpdb;
+
+        $charset_collate = $wpdb->get_charset_collate();
+
+        $sql = "CREATE TABLE $table_name (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            file_name varchar(255) NOT NULL,
+            file_id varchar(255) NOT NULL,
+            validation_status varchar(100) NOT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            PRIMARY KEY (id)
+        ) $charset_collate;";
+
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+
+    /**
+     * @param $fileInfo
+     * @return void
+     * @throws Exception
+     */
+    private function set_bulk_file_validation_info($fileInfo): void
+    {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . '_file_bulk_validation';
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name));
+
+        if ($table_exists !== $table_name) {
+            $this->create_file_bulk_validation_table($table_name);
+        }
+
+        $file_id = $fileInfo->file_id;
+        $file_name = $fileInfo->file_name;
+        $validation_status = $fileInfo->complete_percentage ?? '0%';
+
+        $existing_file = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_name WHERE file_id = %s", $file_id));
+
+        if ($existing_file) {
+            $result = $wpdb->update(
+                $table_name,
+                [
+                    'validation_status' => $validation_status,
+                    'created_at' => current_time('mysql'),
+                ],
+                ['file_id' => $file_id],
+                ['%s', '%s'],
+                ['%s']
+            );
+
+            if ($result === false) {
+                throw new Exception('Error updating file validation info in the database.');
+            } elseif ($result === 0) {
+                throw new Exception('No rows updated. It may indicate the same data was submitted.');
+            }
+
+        } else {
+            $result = $wpdb->insert(
+                $table_name,
+                [
+                    'file_id' => $file_id,
+                    'file_name' => $file_name,
+                    'validation_status' => $validation_status,
+                    'created_at' => current_time('mysql'),
+                ],
+                ['%s', '%s', '%s', '%s']
+            );
+
+            if ($result === false) {
+                throw new Exception('Error inserting file validation info into the database.');
+            }
+        }
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function validate_batch()
+    {
+        if (!wp_verify_nonce($_POST['nonce'], 'zerobounce-batch-validation-nonce')) {
+            wp_send_json_error(['reason' => esc_html__('Request is invalid. Please refresh the page and try again.')], 400, 0);
+            wp_die();
+        }
+
+        if (isset($_FILES["csvUpload"]["name"]) && !empty($_FILES["csvUpload"]["name"])) {
+
+            $response = $this->api->batch_file_validation($_FILES["csvUpload"]);
+            if (!$response->success) {
+                wp_send_json(["success" => $response->success, "error" => $response->error_message, "type" => "file"]);
+                wp_die();
+            }
+
+            $this->set_bulk_file_validation_info($response);
+            wp_send_json(["success" => $response->success, "type" => "file"]);
+            wp_die();
+        } else if (!empty($_POST["manual-upload"])) {
+            $response = $this->api->batch_email_validation($_POST["manual-upload"]);
+            $this->add_results_to_logs($response);
+            $response['type'] = "manual";
+            wp_send_json($response);
+            wp_die();
+        }
+        wp_send_json_error(['error' => 'No input provided!']);
+        wp_die();
+    }
+
+    public function get_uploaded_file_data()
+    {
+        global $wpdb;
+
+        if (!wp_verify_nonce($_POST['nonce'], 'zerobounce-get-files-info-nonce')) {
+            wp_send_json_error(['reason' => esc_html__('Request is invalid. Please refresh the page and try again.')], 400);
+            exit();
+        }
+
+        $table_name = $wpdb->prefix . '_file_bulk_validation';
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name));
+
+
+        if ($table_exists !== $table_name) {
+            wp_send_json_error(['message' => 'Table does not exist.']);
+            wp_die();
+        }
+
+        $page = $_POST['page'] ?: 1;
+        $recordsPerPage = 10;
+        $offset = ($page - 1) * $recordsPerPage;
+
+        try {
+            $total_records = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
+            $total_pages = ceil($total_records / $recordsPerPage);
+
+            $query = $wpdb->prepare("SELECT * FROM $table_name ORDER BY created_at DESC LIMIT %d OFFSET %d", $recordsPerPage, $offset);
+            $results = $wpdb->get_results($query, ARRAY_A);
+
+            if (empty($results)) {
+                wp_send_json_error(['message' => 'No data found.']);
+                wp_die();
+            }
+
+            foreach ($results as &$file) {
+                $file_id = $file["file_id"];
+
+                if ($file["validation_status"] === '100%') {
+                    continue;
+                }
+
+                $api_response = $this->api->batch_file_status($file_id);
+
+                if (is_wp_error($api_response)) {
+                    continue;
+                }
+
+                if (isset($api_response->complete_percentage)) {
+                    if ($file['validation_status'] !== $api_response->complete_percentage) {
+                        $wpdb->update(
+                            $table_name,
+                            ['validation_status' => $api_response->complete_percentage],
+                            ['file_id' => $file_id],
+                            ['%s'],
+                            ['%s']
+                        );
+                        $file['validation_status'] = $api_response->complete_percentage;
+                    }
+                }
+            }
+
+            wp_send_json([
+                'data' => $results,
+                'pagination' => [
+                    'total_records' => $total_records,
+                    'current_page' => $page,
+                    'total_pages' => $total_pages,
+                    'records_per_page' => $recordsPerPage,
+                ],
+                'success' => true
+            ]);
+            wp_die();
+        } catch (Exception $e) {
+            wp_send_json([
+                'success' => false,
+                'message' => 'An error occurred while retrieving or updating the data.',
+                'error' => $e->getMessage(),
+            ]);
+            wp_die();
+        }
+    }
+
+    public function validated_emails_download()
+    {
+
+        if (!isset($_GET['nonce']) || !wp_verify_nonce($_GET['nonce'], 'zerobounce-download-validated-file-nonce')) {
+            wp_die('Invalid nonce.');
+        }
+
+        if (!isset($_GET['file_id'])) {
+            wp_die('Invalid file ID.');
+        }
+
+        $file_data = $this->api->file_results_download($_GET['file_id']);
+
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="downloaded_file.csv"');
+        header('Content-Length: ' . strlen($file_data));
+
+        echo $file_data;
+
+        wp_die();
+    }
+
+    private function add_results_to_logs($response)
+    {
+        global $wpdb;
+
+        foreach ($response['email_batch'] as $validation) {
+            $wpdb->insert(
+                $wpdb->prefix . 'zerobounce_validation_logs',
+                [
+                    'source' => 'Administrator Test',
+                    'email' => $validation['address'],
+                    'status' => $validation['status'],
+                    'sub_status' => $validation['sub_status'],
+                    'ip_address' => (isset($_SERVER["HTTP_CF_CONNECTING_IP"]) ? $_SERVER["HTTP_CF_CONNECTING_IP"] : $_SERVER['REMOTE_ADDR']),
+                    'result' => serialize($validation),
+                    'date_time' => current_time('mysql')
+                ]
+            );
+        }
     }
 }

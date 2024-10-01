@@ -102,13 +102,6 @@ class Zerobounce_Email_Validator_Form_Public
                     'date_time' => current_time('mysql')
                 ]
             );
-
-            $today = new \DateTime('now');
-            $result = $wpdb->query($wpdb->prepare("UPDATE " . $wpdb->prefix . "zerobounce_credit_usage_logs SET credits_used=credits_used+1 WHERE date='%s'", $today->format("Y-m-d")), ARRAY_A);
-
-            if ($result === FALSE || $result < 1) {
-                $wpdb->insert($wpdb->prefix . 'zerobounce_credit_usage_logs', ['credits_used' => 1, 'date' => $today->format("Y-m-d")]);
-            }
         }
 
         return $validationInfo;

@@ -92,13 +92,6 @@ class Zerobounce_Email_Validator_Public
                 ]
             );
 
-            $today = new \DateTime('now');
-            $result = $wpdb->query($wpdb->prepare("UPDATE " . $wpdb->prefix . "zerobounce_credit_usage_logs SET credits_used=credits_used+1 WHERE date='%s'", $today->format("Y-m-d")), ARRAY_A);
-
-            if ($result === FALSE || $result < 1) {
-                $wpdb->insert($wpdb->prefix . 'zerobounce_credit_usage_logs', ['credits_used' => 1, 'date' => $today->format("Y-m-d")]);
-            }
-
             $validation_pass = get_option('zerobounce_settings_validation_pass');
 
             $custom_error = get_option('zerobounce_settings_error_message');
@@ -147,7 +140,7 @@ class Zerobounce_Email_Validator_Public
     {
         foreach ($form_data['fields'] as $key => $field) {
             $value = $field['value'];
-            if (!empty($value) && is_string($value) && preg_match('/@.+\./', $value) && !preg_match('/mailto:/i', $value)) {
+            if (!empty($value) && is_string($value) && preg_match('/@.+\./', $value) && !str_contains($value, "\n") && !str_contains($value, '\n')) {
                 $ninjaForm = new Zerobounce_Email_Validator_Form_Public('ninjaforms', $form_data['id']);
                 $validationInfo = $ninjaForm->prep_validation_info($value);
                 $message = $ninjaForm->set_error_message($validationInfo['did_you_mean']);
