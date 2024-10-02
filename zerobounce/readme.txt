@@ -8,8 +8,10 @@ Requires PHP: 7.0
 License: GPL-2.0+
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
+ZeroBounce validates emails on your WordPress site in real-time, blocking invalid and risky emails to improve deliverability and reduce bounce rates.
+
 == Description ==
- 
+
 Need an email validation tool to block invalid and high-risk emails on your WordPress website?
 
 The ZeroBounce email verification plugin assists users by validating email addresses entered into your registration forms, comments sections, eCommerce shops, and more. Install the plugin, connect your API key, and select the forms you want to monitor with email validation.
