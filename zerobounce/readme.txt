@@ -2,8 +2,8 @@
 Contributors: zerobounce
 Tags: email validation, email verifier, email verification, email tester, email checker
 Requires at least: 4.4
-Tested up to: 6.4.3
-Stable tag: 1.1.2
+Tested up to: 6.7.1
+Stable tag: 1.1.3
 Requires PHP: 7.0
 License: GPL-2.0+
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -99,6 +99,9 @@ The email verifier plugin provides monthly credit usage charts and will notify y
 4. Logs
 
 == Changelog ==
+
+= 1.1.3 =
+* Updated tested version to 6.7.1
 
 = 1.1.2 =
 * Fixed minor bugs for validation

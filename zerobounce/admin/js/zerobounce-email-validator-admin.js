@@ -759,7 +759,6 @@
                 getStatus(page);
             });
         }
-
         getStatus(1);
     });
 })(jQuery);
