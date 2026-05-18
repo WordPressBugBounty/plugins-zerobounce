@@ -16,7 +16,7 @@
  * Plugin Name:       ZeroBounce Email Validator
  * Plugin URI:        https://wordpress.org/plugins/zerobounce/
  * Description:       ZeroBounce Email Validation Plugin
- * Version:           1.1.3
+ * Version:           1.1.4
  * Author:            ZeroBounce
  * Author URI:        https://www.zerobounce.net/
  * License:           GPL-2.0+
@@ -34,7 +34,7 @@ if (!defined('ZEROBOUNCE_BASENAME')) {
     define('ZEROBOUNCE_BASENAME', plugin_basename(__FILE__));
 }
 
-define('ZEROBOUNCE_EMAIL_VALIDATOR_VERSION', '1.1.3');
+define('ZEROBOUNCE_EMAIL_VALIDATOR_VERSION', '1.1.4');
 
 /**
  * The code that runs during plugin activation.
@@ -59,6 +59,17 @@ function deactivate_zerobounce_email_validator()
 register_activation_hook(__FILE__, 'activate_zerobounce_email_validator');
 register_deactivation_hook(__FILE__, 'deactivate_zerobounce_email_validator');
 
+/**
+ * Apply pending schema migrations on admin requests. Cheap when the stored
+ * db version matches (single autoloaded option read); only runs dbDelta when
+ * the plugin has been upgraded without a manual reactivation.
+ */
+function zerobounce_maybe_upgrade_db()
+{
+    require_once plugin_dir_path(__FILE__) . 'includes/class-zerobounce-email-validator-activator.php';
+    Zerobounce_Email_Validator_Activator::maybe_upgrade_db();
+}
+add_action('admin_init', 'zerobounce_maybe_upgrade_db');
 
 function zerobounce_setup_new_site_table($site)
 {

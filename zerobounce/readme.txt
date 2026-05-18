@@ -2,8 +2,8 @@
 Contributors: zerobounce
 Tags: email validation, email verifier, email verification, email tester, email checker
 Requires at least: 4.4
-Tested up to: 6.7.1
-Stable tag: 1.1.3
+Tested up to: 6.9.4
+Stable tag: 1.1.4
 Requires PHP: 7.0
 License: GPL-2.0+
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -99,6 +99,14 @@ The email verifier plugin provides monthly credit usage charts and will notify y
 4. Logs
 
 == Changelog ==
+
+= 1.1.4 =
+* Fixed: Logs page no longer exhausts PHP memory on sites with large log histories (switched to server-side DataTables pagination)
+* Fixed: "View" button on the Logs page now works on the first row and on responsive (mobile) layouts
+* Improved: Log details modal opens immediately with a loading spinner instead of blocking until the request completes
+* Security: Logs and single-log AJAX endpoints now require the `manage_options` capability; SQL queries hardened with prepared statements
+* Performance: Added indexes on the validation logs table (`date_time`, `email`, `status`)
+* Updated tested version to 6.9.4
 
 = 1.1.3 =
 * Updated tested version to 6.7.1

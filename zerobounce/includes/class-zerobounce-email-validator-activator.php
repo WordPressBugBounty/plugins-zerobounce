@@ -12,11 +12,18 @@ class Zerobounce_Email_Validator_Activator
 {
 
     /**
+     * Bumped whenever the schema changes so existing installs can run
+     * dbDelta on upgrade without requiring a manual reactivation.
+     */
+    const DB_VERSION = '2';
+
+    /**
      * @since    1.0.0
      */
     public static function activate($network_wide)
     {
         Zerobounce_Email_Validator_Activator::setup_tables($network_wide);
+        update_option('zerobounce_db_version', self::DB_VERSION);
 
         $validation_forms = [
             'validation_contact_form_7',
@@ -94,6 +101,9 @@ class Zerobounce_Email_Validator_Activator
         $charset_collate = $wpdb->get_charset_collate();
         $table_name = $wpdb->prefix . 'zerobounce_validation_logs';
 
+        // Indexes are critical for the Logs page: without zb_date_time the
+        // default `ORDER BY date_time DESC LIMIT ...` is a filesort over the
+        // entire table, and without zb_email the search box scans every row.
         $sql = "CREATE TABLE $table_name (
     		id mediumint(9) NOT NULL AUTO_INCREMENT,
 			source varchar(255) NOT NULL,
@@ -104,11 +114,32 @@ class Zerobounce_Email_Validator_Activator
 			ip_address varchar(50) NOT NULL,
     		result TEXT NOT NULL,
     		date_time datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
-    		UNIQUE KEY id (id)
+    		UNIQUE KEY id (id),
+    		KEY zb_date_time (date_time),
+    		KEY zb_email (email(191)),
+    		KEY zb_status (status)
     	) $charset_collate;";
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql);
+    }
+
+    /**
+     * Idempotent migration runner. Re-runs dbDelta whenever the bundled
+     * DB_VERSION differs from the value stored in options, which lets
+     * plugin updates (e.g. via wordpress.org auto-update) pick up schema
+     * changes without requiring the user to deactivate/reactivate.
+     */
+    public static function maybe_upgrade_db(): void
+    {
+        if (get_option('zerobounce_db_version') === self::DB_VERSION) {
+            return;
+        }
+
+        self::create_validation_logs();
+        self::create_bulk_file_validation();
+
+        update_option('zerobounce_db_version', self::DB_VERSION);
     }
 
     private static function create_bulk_file_validation()

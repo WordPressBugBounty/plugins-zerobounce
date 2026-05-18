@@ -645,213 +645,228 @@ class Zerobounce_Email_Validator_Admin
 //        wp_send_json_success($data, 200, 0);
 //    }
 
+    /**
+     * AJAX handler that powers the Logs page DataTable.
+     *
+     * Uses server-side processing so the SQL is paged and the PHP only ever
+     * formats the visible rows. The previous implementation loaded the entire
+     * `zerobounce_validation_logs` table into memory and could exhaust the
+     * PHP memory limit on sites with large log histories.
+     *
+     * Response shape: DataTables server-side
+     *   { draw, recordsTotal, recordsFiltered, data: [ { id, source, email, status, sub_status, ip_address, date_time }, ... ] }
+     */
     public function validation_full_logs()
     {
         global $wpdb;
 
-        if (!wp_verify_nonce($_GET['nonce'], 'zerobounce-full-logs-nonce')) {
+        $nonce = isset($_POST['nonce']) ? $_POST['nonce'] : (isset($_GET['nonce']) ? $_GET['nonce'] : '');
+        if (!wp_verify_nonce($nonce, 'zerobounce-full-logs-nonce')) {
             wp_send_json_error(['reason' => esc_html__('Request is invalid. Please refresh the page and try again.')], 400, 0);
-            exit();
         }
 
-        $logs = $wpdb->get_results("SELECT * FROM " . $wpdb->prefix . "zerobounce_validation_logs");
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['reason' => esc_html__('Insufficient permissions.')], 403, 0);
+        }
 
-        if ($logs) {
-            $final_logs = [];
+        $request = $_POST ?: $_GET;
+        $table   = $wpdb->prefix . 'zerobounce_validation_logs';
 
-            foreach ($logs as $k => $v) {
-                $final_logs[$k]['id'] = $v->id;
+        $draw   = isset($request['draw']) ? (int) $request['draw'] : 0;
+        $start  = isset($request['start']) ? max(0, (int) $request['start']) : 0;
+        $length = isset($request['length']) ? (int) $request['length'] : 10;
+        if ($length < 1 || $length > 200) {
+            $length = 10;
+        }
 
-                switch ($v->source) {
-                    case 'wpforms':
-                        $wpforms_preview = get_site_url(null, '/?wpforms_form_preview=' . $v->form_id, null);
+        $search = isset($request['search']['value']) ? trim((string) $request['search']['value']) : '';
 
-                        $final_logs[$k]['source'] = "<a href=\"" . $wpforms_preview . "\" target=\"_blank\">WP Form</a>";
-                        break;
+        // Whitelist sortable columns so we never inject into ORDER BY.
+        $orderableCols = ['id', 'source', 'email', 'status', 'sub_status', 'ip_address', 'date_time'];
+        $orderColIdx   = isset($request['order'][0]['column']) ? (int) $request['order'][0]['column'] : 6;
+        $orderDir      = (isset($request['order'][0]['dir']) && strtolower($request['order'][0]['dir']) === 'asc') ? 'ASC' : 'DESC';
+        $orderCol      = isset($orderableCols[$orderColIdx]) ? $orderableCols[$orderColIdx] : 'date_time';
 
-                    case 'ninjaforms':
-                        $ninjaforms_preview = get_site_url(null, '/?nf_preview_form=' . $v->form_id, null);
+        $recordsTotal = (int) $wpdb->get_var("SELECT COUNT(*) FROM `$table`");
 
-                        $final_logs[$k]['source'] = "<a href=\"" . $ninjaforms_preview . "\" target=\"_blank\">Ninja Form</a>";
-                        break;
+        $where        = '';
+        $whereParams  = [];
+        if ($search !== '') {
+            $like        = '%' . $wpdb->esc_like($search) . '%';
+            $where       = 'WHERE email LIKE %s OR source LIKE %s OR status LIKE %s OR sub_status LIKE %s OR ip_address LIKE %s';
+            $whereParams = [$like, $like, $like, $like, $like];
+        }
 
-                    case 'cf7forms':
-                        $cf7forms_preview = get_site_url(null, '/wp-admin/admin.php?page=wpcf7&post=' . $v->form_id . '&action=edit', null);
+        if ($where === '') {
+            $recordsFiltered = $recordsTotal;
+        } else {
+            $recordsFiltered = (int) $wpdb->get_var(
+                $wpdb->prepare("SELECT COUNT(*) FROM `$table` $where", $whereParams)
+            );
+        }
 
-                        $final_logs[$k]['source'] = "<a href=\"" . $cf7forms_preview . "\" target=\"_blank\">Contact Form 7</a>";
-                        break;
+        $selectCols = 'id, source, form_id, email, status, sub_status, ip_address, date_time';
+        $sql        = "SELECT $selectCols FROM `$table` $where ORDER BY `$orderCol` $orderDir LIMIT %d OFFSET %d";
 
-                    case 'formidableforms':
-                        $formidableforms_preview = get_site_url(null, '/wp-admin/admin.php?page=formidable&frm_action=edit&id=' . $v->form_id, null);
+        $rows = $where === ''
+            ? $wpdb->get_results($wpdb->prepare($sql, $length, $start))
+            : $wpdb->get_results($wpdb->prepare($sql, array_merge($whereParams, [$length, $start])));
 
-                        $final_logs[$k]['source'] = "<a href=\"" . $formidableforms_preview . "\" target=\"_blank\">Formidable Form</a>";
-                        break;
-
-                    case 'woocommerceforms':
-                        $final_logs[$k]['source'] = "WooCommerce";
-                        break;
-
-                    case 'wordpressisemail':
-                        $final_logs[$k]['source'] = "WordPress Comment";
-                        break;
-
-                    case 'wordpressregister':
-                        $final_logs[$k]['source'] = "WordPress Register";
-                        break;
-
-                    case 'mc4wp_mailchimp':
-                        $mc4wp_preview = get_site_url(null, '/wp-admin/admin.php?page=mailchimp-for-wp-forms&view=edit-form&form_id=' . $v->form_id, null);
-
-                        $final_logs[$k]['source'] = "<a href=\"" . $mc4wp_preview . "\" target=\"_blank\">MC4WP: Mailchimp for WordPress</a>";
-                        break;
-
-                    case 'gravity_forms':
-                        $gravity_forms_preview = get_site_url(null, '/wp-admin/admin.php?page=gf_edit_forms&id=' . $v->form_id, null);
-
-                        $final_logs[$k]['source'] = "<a href=\"" . $gravity_forms_preview . "\" target=\"_blank\">Gravity Forms</a>";
-                        break;
-
-                    default:
-                        $final_logs[$k]['source'] = $v->source ? $v->source : "Unknown";
-                        break;
-                }
-
-                $final_logs[$k]['email'] = $v->email;
-
-                switch ($v->status) {
-                    case 'valid':
-                        $final_logs[$k]['status'] = "<span class=\"badge\" style=\"color: #fff!important;background-color: #3ecf8f !important;\">" . __('Valid', 'zerobounce-email-validator') . "</span>";
-                        break;
-                    case 'invalid':
-                        $final_logs[$k]['status'] = "<span class=\"badge\" style=\"color: #fff!important;background-color: #e65849 !important;\">" . __('Invalid', 'zerobounce-email-validator') . "</span>";
-                        break;
-                    case 'no-free-service':
-                        $final_logs[$k]['status'] = "<span class=\"badge\" style=\"color: #fff!important;background-color: #ff5f15 !important;\">" . __('Block Free Services', 'zerobounce-email-validator') . "</span>";
-                        break;
-                    case 'catch-all':
-                        $final_logs[$k]['status'] = "<span class=\"badge\" style=\"color: #fff!important;background-color: #ff978a !important;\">" . __('Catch-All', 'zerobounce-email-validator') . "</span>";
-                        break;
-                    case 'unknown':
-                        $final_logs[$k]['status'] = "<span class=\"badge\" style=\"color: #fff!important;background-color: #ffbe43 !important;\">" . __('Unknown', 'zerobounce-email-validator') . "</span>";
-                        break;
-                    case 'spamtrap':
-                        $final_logs[$k]['status'] = "<span class=\"badge\" style=\"color: #fff!important;background-color: #dcdcdc !important;\">" . __('Spamtrap', 'zerobounce-email-validator') . "</span>";
-                        break;
-                    case 'abuse':
-                        $final_logs[$k]['status'] = "<span class=\"badge\" style=\"color: #fff!important;background-color: #014b70 !important;\">" . __('Abuse', 'zerobounce-email-validator') . "</span>";
-                        break;
-                    case 'do_not_mail':
-                        $final_logs[$k]['status'] = "<span class=\"badge\" style=\"color: #fff!important;background-color: #1e8bc2 !important;\">" . __('Do Not Mail', 'zerobounce-email-validator') . "</span>";
-                        break;
-                    default:
-                        $final_logs[$k]['status'] = $v->status ? $v->status : "-";
-                        break;
-                }
-
-                switch ($v->sub_status) {
-                    case 'antispam_system':
-                        $final_logs[$k]['sub_status'] = __("Antispam", 'zerobounce-email-validator');
-                        break;
-                    case 'greylisted':
-                        $final_logs[$k]['sub_status'] = __("Greylisted", 'zerobounce-email-validator');
-                        break;
-                    case 'mail_server_temporary_error':
-                        $final_logs[$k]['sub_status'] = __("Server Temporary Error", 'zerobounce-email-validator');
-                        break;
-                    case 'forcible_disconnect':
-                        $final_logs[$k]['sub_status'] = __("Forcible Disconnect", 'zerobounce-email-validator');
-                        break;
-                    case 'mail_server_did_not_respond':
-                        $final_logs[$k]['sub_status'] = __("Server Non-Responsive", 'zerobounce-email-validator');
-                        break;
-                    case 'timeout_exceeded':
-                        $final_logs[$k]['sub_status'] = __("Timeout Exceeded", 'zerobounce-email-validator');
-                        break;
-                    case 'failed_smtp_connection':
-                        $final_logs[$k]['sub_status'] = __("SMPT Failed", 'zerobounce-email-validator');
-                        break;
-                    case 'mailbox_quota_exceeded':
-                        $final_logs[$k]['sub_status'] = __("Quota Exceeded", 'zerobounce-email-validator');
-                        break;
-                    case 'exception_occurred':
-                        $final_logs[$k]['sub_status'] = __("Exception Occured", 'zerobounce-email-validator');
-                        break;
-                    case 'possible_trap':
-                        $final_logs[$k]['sub_status'] = __("Possible Trap", 'zerobounce-email-validator');
-                        break;
-                    case 'role_based':
-                        $final_logs[$k]['sub_status'] = __("Role Based", 'zerobounce-email-validator');
-                        break;
-                    case 'global_suppression':
-                        $final_logs[$k]['sub_status'] = __("Global Suppression", 'zerobounce-email-validator');
-                        break;
-                    case 'mailbox_not_found':
-                        $final_logs[$k]['sub_status'] = __("Mailbox Not Found", 'zerobounce-email-validator');
-                        break;
-                    case 'no_dns_entries':
-                        $final_logs[$k]['sub_status'] = __("No DNS Entries", 'zerobounce-email-validator');
-                        break;
-                    case 'failed_syntax_check':
-                        $final_logs[$k]['sub_status'] = __("Failed Syntax", 'zerobounce-email-validator');
-                        break;
-                    case 'possible_typo':
-                        $final_logs[$k]['sub_status'] = __("Possible Typo", 'zerobounce-email-validator');
-                        break;
-                    case 'unroutable_ip_address':
-                        $final_logs[$k]['sub_status'] = __("IP Non-Routable", 'zerobounce-email-validator');
-                        break;
-                    case 'leading_period_removed':
-                        $final_logs[$k]['sub_status'] = __("Leading Period", 'zerobounce-email-validator');
-                        break;
-                    case 'does_not_accept_mail':
-                        $final_logs[$k]['sub_status'] = __("Not Accepting Mail", 'zerobounce-email-validator');
-                        break;
-                    case 'alias_address':
-                        $final_logs[$k]['sub_status'] = __("Alias Address", 'zerobounce-email-validator');
-                        break;
-                    case 'role_based_catch_all':
-                        $final_logs[$k]['sub_status'] = __("Role Based Catch-All", 'zerobounce-email-validator');
-                        break;
-                    case 'disposable':
-                        $final_logs[$k]['sub_status'] = __("Disposable", 'zerobounce-email-validator');
-                        break;
-                    case 'toxic':
-                        $final_logs[$k]['sub_status'] = __("Toxic", 'zerobounce-email-validator');
-                        break;
-
-                    default:
-                        $final_logs[$k]['sub_status'] = $v->sub_status ? $v->sub_status : "-";
-                        break;
-                }
-
-                $final_logs[$k]['ip_address'] = $v->ip_address;
-                $final_logs[$k]['date_time'] = $v->date_time;
+        $data = [];
+        if (is_array($rows)) {
+            foreach ($rows as $v) {
+                $data[] = [
+                    'id'         => (int) $v->id,
+                    'source'     => $this->format_log_source($v->source, isset($v->form_id) ? $v->form_id : null),
+                    'email'      => esc_html($v->email),
+                    'status'     => $this->format_log_status($v->status),
+                    'sub_status' => $this->format_log_sub_status($v->sub_status),
+                    'ip_address' => esc_html($v->ip_address),
+                    'date_time'  => esc_html($v->date_time),
+                ];
             }
-
-            wp_send_json_success($final_logs, 200, 0);
         }
 
+        wp_send_json([
+            'draw'            => $draw,
+            'recordsTotal'    => $recordsTotal,
+            'recordsFiltered' => $recordsFiltered,
+            'data'            => $data,
+        ]);
+    }
 
-        wp_send_json_success([], 200, 0);
+    /**
+     * Render the `source` column with a contextual link back to the originating
+     * form's edit screen where possible.
+     */
+    private function format_log_source($source, $form_id): string
+    {
+        $form_id = $form_id !== null ? (int) $form_id : 0;
+
+        switch ($source) {
+            case 'wpforms':
+                $url = get_site_url(null, '/?wpforms_form_preview=' . $form_id, null);
+                return '<a href="' . esc_url($url) . '" target="_blank">' . esc_html__('WP Form', 'zerobounce-email-validator') . '</a>';
+
+            case 'ninjaforms':
+                $url = get_site_url(null, '/?nf_preview_form=' . $form_id, null);
+                return '<a href="' . esc_url($url) . '" target="_blank">' . esc_html__('Ninja Form', 'zerobounce-email-validator') . '</a>';
+
+            case 'cf7forms':
+                $url = get_site_url(null, '/wp-admin/admin.php?page=wpcf7&post=' . $form_id . '&action=edit', null);
+                return '<a href="' . esc_url($url) . '" target="_blank">' . esc_html__('Contact Form 7', 'zerobounce-email-validator') . '</a>';
+
+            case 'formidableforms':
+                $url = get_site_url(null, '/wp-admin/admin.php?page=formidable&frm_action=edit&id=' . $form_id, null);
+                return '<a href="' . esc_url($url) . '" target="_blank">' . esc_html__('Formidable Form', 'zerobounce-email-validator') . '</a>';
+
+            case 'woocommerceforms':
+                return 'WooCommerce';
+
+            case 'wordpressisemail':
+                return esc_html__('WordPress Comment', 'zerobounce-email-validator');
+
+            case 'wordpressregister':
+                return esc_html__('WordPress Register', 'zerobounce-email-validator');
+
+            case 'mc4wp_mailchimp':
+                $url = get_site_url(null, '/wp-admin/admin.php?page=mailchimp-for-wp-forms&view=edit-form&form_id=' . $form_id, null);
+                return '<a href="' . esc_url($url) . '" target="_blank">' . esc_html__('MC4WP: Mailchimp for WordPress', 'zerobounce-email-validator') . '</a>';
+
+            case 'gravity_forms':
+                $url = get_site_url(null, '/wp-admin/admin.php?page=gf_edit_forms&id=' . $form_id, null);
+                return '<a href="' . esc_url($url) . '" target="_blank">' . esc_html__('Gravity Forms', 'zerobounce-email-validator') . '</a>';
+
+            default:
+                return $source ? esc_html($source) : esc_html__('Unknown', 'zerobounce-email-validator');
+        }
+    }
+
+    /**
+     * Render the `status` column as a coloured badge.
+     */
+    private function format_log_status($status): string
+    {
+        $badges = [
+            'valid'           => ['#3ecf8f', __('Valid', 'zerobounce-email-validator')],
+            'invalid'         => ['#e65849', __('Invalid', 'zerobounce-email-validator')],
+            'no-free-service' => ['#ff5f15', __('Block Free Services', 'zerobounce-email-validator')],
+            'catch-all'       => ['#ff978a', __('Catch-All', 'zerobounce-email-validator')],
+            'unknown'         => ['#ffbe43', __('Unknown', 'zerobounce-email-validator')],
+            'spamtrap'        => ['#dcdcdc', __('Spamtrap', 'zerobounce-email-validator')],
+            'abuse'           => ['#014b70', __('Abuse', 'zerobounce-email-validator')],
+            'do_not_mail'     => ['#1e8bc2', __('Do Not Mail', 'zerobounce-email-validator')],
+        ];
+
+        if (isset($badges[$status])) {
+            list($color, $label) = $badges[$status];
+            return '<span class="badge" style="color: #fff!important;background-color: ' . $color . ' !important;">' . esc_html($label) . '</span>';
+        }
+
+        return $status ? esc_html($status) : '-';
+    }
+
+    /**
+     * Render the `sub_status` column with a human-friendly label.
+     */
+    private function format_log_sub_status($sub_status): string
+    {
+        $labels = [
+            'antispam_system'             => __('Antispam', 'zerobounce-email-validator'),
+            'greylisted'                  => __('Greylisted', 'zerobounce-email-validator'),
+            'mail_server_temporary_error' => __('Server Temporary Error', 'zerobounce-email-validator'),
+            'forcible_disconnect'         => __('Forcible Disconnect', 'zerobounce-email-validator'),
+            'mail_server_did_not_respond' => __('Server Non-Responsive', 'zerobounce-email-validator'),
+            'timeout_exceeded'            => __('Timeout Exceeded', 'zerobounce-email-validator'),
+            'failed_smtp_connection'      => __('SMPT Failed', 'zerobounce-email-validator'),
+            'mailbox_quota_exceeded'      => __('Quota Exceeded', 'zerobounce-email-validator'),
+            'exception_occurred'          => __('Exception Occured', 'zerobounce-email-validator'),
+            'possible_trap'               => __('Possible Trap', 'zerobounce-email-validator'),
+            'role_based'                  => __('Role Based', 'zerobounce-email-validator'),
+            'global_suppression'          => __('Global Suppression', 'zerobounce-email-validator'),
+            'mailbox_not_found'           => __('Mailbox Not Found', 'zerobounce-email-validator'),
+            'no_dns_entries'              => __('No DNS Entries', 'zerobounce-email-validator'),
+            'failed_syntax_check'         => __('Failed Syntax', 'zerobounce-email-validator'),
+            'possible_typo'               => __('Possible Typo', 'zerobounce-email-validator'),
+            'unroutable_ip_address'       => __('IP Non-Routable', 'zerobounce-email-validator'),
+            'leading_period_removed'      => __('Leading Period', 'zerobounce-email-validator'),
+            'does_not_accept_mail'        => __('Not Accepting Mail', 'zerobounce-email-validator'),
+            'alias_address'               => __('Alias Address', 'zerobounce-email-validator'),
+            'role_based_catch_all'        => __('Role Based Catch-All', 'zerobounce-email-validator'),
+            'disposable'                  => __('Disposable', 'zerobounce-email-validator'),
+            'toxic'                       => __('Toxic', 'zerobounce-email-validator'),
+        ];
+
+        if (isset($labels[$sub_status])) {
+            return esc_html($labels[$sub_status]);
+        }
+
+        return $sub_status ? esc_html($sub_status) : '-';
     }
 
     public function validation_single_log()
     {
         global $wpdb;
 
-        if (!wp_verify_nonce($_POST['nonce'], 'zerobounce-single-log-nonce')) {
+        if (!wp_verify_nonce(isset($_POST['nonce']) ? $_POST['nonce'] : '', 'zerobounce-single-log-nonce')) {
             wp_send_json_error(['reason' => esc_html__('Request is invalid. Please refresh the page and try again.')], 400, 0);
-            exit();
         }
 
-        $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['reason' => esc_html__('Insufficient permissions.')], 403, 0);
+        }
 
-        $log = $wpdb->get_results("SELECT * FROM " . $wpdb->prefix . "zerobounce_validation_logs WHERE id=" . $id . "");
+        $id    = isset($_POST['id']) ? (int) $_POST['id'] : 0;
+        $table = $wpdb->prefix . 'zerobounce_validation_logs';
+
+        $log = $wpdb->get_row(
+            $wpdb->prepare("SELECT result FROM `$table` WHERE id = %d", $id)
+        );
 
         if ($log) {
-            $result = unserialize($log[0]->result);
+            $result = @unserialize($log->result);
 
-            wp_send_json_success($result, 200, 0);
+            wp_send_json_success($result !== false ? $result : [], 200, 0);
         }
 
         wp_send_json_success([], 200, 0);

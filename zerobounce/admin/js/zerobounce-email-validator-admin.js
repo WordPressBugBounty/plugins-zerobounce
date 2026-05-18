@@ -372,42 +372,37 @@
         if ($("#logsTable").length > 0) {
             var table = $('#logsTable').DataTable({
                 processing: true,
-                serverSide: false,
+                serverSide: true,
                 responsive: true,
                 ajax: {
                     url: params.ajax_url,
-                    data: {
-                        'action': 'zerobounce_validation_full_logs',
-                        'nonce': params.ajax_validation_full_logs_nonce
+                    type: 'POST',
+                    data: function (d) {
+                        d.action = 'zerobounce_validation_full_logs';
+                        d.nonce  = params.ajax_validation_full_logs_nonce;
+                        return d;
                     },
+                    error: function (xhr) {
+                        if (window.console && console.error) {
+                            console.error('ZeroBounce logs ajax error', xhr.status, xhr.responseText);
+                        }
+                    }
                 },
                 columnDefs: [{
                     targets: 7,
                     data: null,
+                    orderable: false,
+                    searchable: false,
                     defaultContent: '<button type="button" class="btn btn-info text-white">View</button>',
                 },],
                 columns: [
-                    {
-                        data: 'id'
-                    },
-                    {
-                        data: 'source'
-                    },
-                    {
-                        data: 'email'
-                    },
-                    {
-                        data: 'status'
-                    },
-                    {
-                        data: 'sub_status'
-                    },
-                    {
-                        data: 'ip_address'
-                    },
-                    {
-                        data: 'date_time'
-                    },
+                    { data: 'id' },
+                    { data: 'source' },
+                    { data: 'email' },
+                    { data: 'status' },
+                    { data: 'sub_status' },
+                    { data: 'ip_address' },
+                    { data: 'date_time' },
                 ],
                 order: [
                     [6, 'desc']
@@ -419,10 +414,58 @@
 
             new $.fn.dataTable.FixedHeader(table);
 
+            const renderLogInspectRow = (label, value) => {
+                const safe = (value === undefined || value === null || value === '') ? '—' : String(value);
+                return `<tr><td>${label}</td><td>${$('<div>').text(safe).html()}</td></tr>`;
+            };
+
+            const renderLogInspectBody = (d) => {
+                const rows = [
+                    ['Status', d.status],
+                    ['Sub-Status', d.sub_status],
+                    ['Free Email', d.free_email],
+                    ['Did you mean?', d.did_you_mean],
+                    ['Account', d.account],
+                    ['Domain', d.domain],
+                    ['Domain Age', d.domain_age_days != null ? `${d.domain_age_days} (days)` : ''],
+                    ['SMTP Provider', d.smtp_provider],
+                    ['MX Found', d.mx_found],
+                    ['MX Record', d.mx_record],
+                    ['Firstname', d.firstname],
+                    ['Lastname', d.lastname],
+                    ['Gender', d.gender],
+                    ['Country', d.country],
+                    ['Region', d.region],
+                    ['City', d.city],
+                    ['ZIP Code', d.zipcode],
+                    ['Processed At', d.processed_at],
+                ];
+                return `<table id="logInspectResult" class="table table-sm table-hover"><thead></thead><tbody>${rows.map(([l, v]) => renderLogInspectRow(l, v)).join('')}</tbody></table>`;
+            };
+
+            const logInspectSpinner = '<div class="d-flex justify-content-center align-items-center" style="min-height: 8rem;"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+
             $('#logsTable tbody').on('click', 'button', function () {
-                let tr = $(this).closest('tr');
-                let row = table.row(tr.hasClass('parent') ? tr : tr.prev());
-                let data = row.data();
+                const $button = $(this);
+                let tr = $button.closest('tr');
+                // DataTables Responsive renders hidden columns inside a
+                // sibling `.child` row; in that case walk back to its parent
+                // to recover the original row data.
+                if (tr.hasClass('child')) {
+                    tr = tr.prev();
+                }
+                const data = table.row(tr).data();
+                if (!data || data.id == null) {
+                    return;
+                }
+
+                // Open the modal immediately with a spinner so the user gets
+                // feedback even on slow connections — the original code only
+                // showed the modal once the AJAX completed.
+                $button.prop('disabled', true);
+                $('#logInspectModalLabel').text(`ZeroBounce Log #${data.id}`);
+                $('#log-inspect-result').html(logInspectSpinner);
+                $('#logInspectModal').modal('show');
 
                 $.ajax({
                     data: {
@@ -435,114 +478,21 @@
                     type: 'POST',
                 })
                     .done(function (response) {
-
-                        if ($("#logInspectResult").length === 0) {
-                            $('#log-inspect-result').append(`<table id="logInspectResult" class="table table-sm table-hover">
-                                <thead></thead>
-                                <tbody>
-                                    <tr>
-                                        <td>Status</td>
-                                        <td id="logInspectStatus">${response.data.status}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Sub-Status</td>
-                                        <td id="logInspectSubStatus">${response.data.sub_status}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Free Email</td>
-                                        <td id="logInspectFreeEmail">${response.data.free_email}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Did you mean?</td>
-                                        <td id="logInspectDyM">${response.data.did_you_mean}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Account</td>
-                                        <td id="logInspectAccount">${response.data.account}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Domain</td>
-                                        <td id="logInspectDomain">${response.data.domain}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Domain Age</td>
-                                        <td id="logInspectDomainAge">${response.data.domain_age_days} (days)</td>
-                                    </tr>
-                                    <tr>
-                                        <td>SMTP Provider</td>
-                                        <td id="logInspectSmtpProvider">${response.data.smtp_provider}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>MX Found</td>
-                                        <td id="logInspectMxFound">${response.data.mx_found}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>MX Record</td>
-                                        <td id="logInspectMxRecord">${response.data.mx_record}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Firstname</td>
-                                        <td id="logInspectFirstname">${response.data.firstname}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Lastname</td>
-                                        <td id="logInspectLastname">${response.data.lastname}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Gender</td>
-                                        <td id="logInspectGender">${response.data.gender}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Country</td>
-                                        <td id="logInspectCountry">${response.data.country}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Region</td>
-                                        <td id="logInspectRegion">${response.data.region}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>City</td>
-                                        <td id="logInspectCity">${response.data.city}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>ZIP Code</td>
-                                        <td id="logInspectZipCode">${response.data.zipcode}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Processed At</td>
-                                        <td id="logInspectProcessedAt">${response.data.processed_at}</td>
-                                    </tr>
-                                </tbody>
-                            </table>`);
-                        } else {
-                            $("#logInspectStatus").text(response.data.status);
-                            $("#logInspectSubStatus").text(response.data.sub_status);
-                            $("#logInspectFreeEmail").text(response.data.free_email);
-                            $("#logInspectDyM").text(response.data.did_you_mean);
-                            $("#logInspectAccount").text(response.data.account);
-                            $("#logInspectDomain").text(response.data.domain);
-                            $("#logInspectDomainAge").text(response.data.domain_age_days);
-                            $("#logInspectSmtpProvider").text(response.data.smtp_provider);
-                            $("#logInspectMxFound").text(response.data.mx_found);
-                            $("#logInspectMxRecord").text(response.data.mx_record);
-                            $("#logInspectFirstname").text(response.data.firstname);
-                            $("#logInspectLastname").text(response.data.lastname);
-                            $("#logInspectGender").text(response.data.gender);
-                            $("#logInspectCountry").text(response.data.country);
-                            $("#logInspectRegion").text(response.data.region);
-                            $("#logInspectCity").text(response.data.city);
-                            $("#logInspectZipCode").text(response.data.zipcode);
-                            $("#logInspectProcessedAt").text(response.data.processed_at);
-                        }
-
-                        $("#logInspectModalLabel").text(`ZeroBounce Log #${data.id}`);
-
-                        $("#logInspectModal").modal('show');
+                        const payload = (response && response.data) ? response.data : {};
+                        $('#log-inspect-result').html(renderLogInspectBody(payload));
                     })
-                    .fail(function (jqXHR, textStatus) {
-                        console.log(jqXHR.responseJSON.data.reason);
+                    .fail(function (jqXHR) {
+                        const reason = jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.data && jqXHR.responseJSON.data.reason;
+                        const message = reason || 'Failed to load log details. Please try again.';
+                        $('#log-inspect-result').html(
+                            `<div class="alert alert-danger m-0" role="alert">${$('<div>').text(message).html()}</div>`
+                        );
+                        if (window.console && console.error) {
+                            console.error('ZeroBounce single log ajax error', jqXHR.status, jqXHR.responseText);
+                        }
                     })
                     .always(function () {
+                        $button.prop('disabled', false);
                     });
             });
         }
