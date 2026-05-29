@@ -3,7 +3,7 @@ Contributors: zerobounce
 Tags: email validation, email verifier, email verification, email tester, email checker
 Requires at least: 4.4
 Tested up to: 6.9.4
-Stable tag: 1.1.4
+Stable tag: 1.1.5
 Requires PHP: 7.0
 License: GPL-2.0+
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -99,6 +99,10 @@ The email verifier plugin provides monthly credit usage charts and will notify y
 4. Logs
 
 == Changelog ==
+
+= 1.1.5 =
+* Added: Email validation now runs on the WooCommerce My Account registration form (via the `woocommerce_register_post` hook), in addition to the existing checkout validation. Controlled by the existing WooCommerce form toggle.
+* Improved: When the same address is submitted through both checkout and registration in a single request (checkout with "create an account"), it is validated only once to avoid a duplicate API call and credit.
 
 = 1.1.4 =
 * Fixed: Logs page no longer exhausts PHP memory on sites with large log histories (switched to server-side DataTables pagination)

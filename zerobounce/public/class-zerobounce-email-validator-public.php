@@ -227,6 +227,38 @@ class Zerobounce_Email_Validator_Public
     }
 
     /**
+     * Per-request cache of ZeroBounce validation results, keyed by lowercase email.
+     * Prevents a second API call (and a duplicate log row + credit) when the same
+     * address is submitted through both the checkout and registration hooks during
+     * a single checkout-with-account-creation request.
+     *
+     * @var array
+     */
+    private static $zbValidationCache = [];
+
+    /**
+     * Validate an email at most once per request, reusing the cached result for
+     * any subsequent WooCommerce handler that sees the same address.
+     *
+     * @param Zerobounce_Email_Validator_Form_Public $form
+     * @param string $email
+     * @return array|null
+     */
+    private function validate_once(Zerobounce_Email_Validator_Form_Public $form, $email)
+    {
+        $key = strtolower(trim((string) $email));
+        if ($key === '') {
+            return null;
+        }
+        if (array_key_exists($key, self::$zbValidationCache)) {
+            return self::$zbValidationCache[$key];
+        }
+        $info = $form->prep_validation_info($email);
+        self::$zbValidationCache[$key] = $info;
+        return $info;
+    }
+
+    /**
      * Woocommerce Checkout Form Validator Hook - shortcode blocks
      * @param $fields
      * @param $errors
@@ -238,11 +270,11 @@ class Zerobounce_Email_Validator_Public
         $validationInfo = null;
 
         if (!empty($fields['billing_email'])) {
-            $validationInfo = $woocommerceForm->prep_validation_info($fields['billing_email']);
+            $validationInfo = $this->validate_once($woocommerceForm, $fields['billing_email']);
         }
 
         if (!empty($fields['shipping_email'])) {
-            $validationInfo = $woocommerceForm->prep_validation_info($fields['shipping_email']);
+            $validationInfo = $this->validate_once($woocommerceForm, $fields['shipping_email']);
         }
 
         $message = $woocommerceForm->set_error_message($validationInfo['did_you_mean']);
@@ -252,6 +284,38 @@ class Zerobounce_Email_Validator_Public
             $errors = &$args[0]['errors'];
             $errors->add('validation', esc_html__($message));
         }, ['message' => $message, 'errors' => &$errors]);
+    }
+
+    /**
+     * Woocommerce my-account / registration form validator hook.
+     * Fires via `woocommerce_register_post`, which wc_create_new_customer()
+     * triggers on /my-account/ registration. The checkout hook does NOT cover
+     * this flow, and WooCommerce registration does not fire WordPress core's
+     * `registration_errors` filter, so this is required for registration coverage.
+     *
+     * @param string $username
+     * @param string $email
+     * @param WP_Error $validation_errors
+     * @return void
+     */
+    public function woocommerce_registration_validator($username, $email, $validation_errors)
+    {
+        // WooCommerce core already rejects empty / syntactically invalid / existing
+        // emails before this point, so only spend an API call on the rest.
+        if (empty($email) || email_exists($email)) {
+            return;
+        }
+
+        $wcRegForm = new Zerobounce_Email_Validator_Form_Public('woocommerce_registration', '');
+        $validationInfo = $this->validate_once($wcRegForm, $email);
+        $didYouMean = is_array($validationInfo) ? ($validationInfo['did_you_mean'] ?? null) : null;
+        $message = $wcRegForm->set_error_message($didYouMean);
+        $wcRegForm->setup_form_validation($validationInfo, function () {
+            $args = func_get_args();
+            $message = $args[0]['message'];
+            $errors = $args[0]['errors']; // WP_Error object, mutated in place
+            $errors->add('zb_invalid_email', esc_html__($message));
+        }, ['message' => $message, 'errors' => $validation_errors]);
     }
 
     /**

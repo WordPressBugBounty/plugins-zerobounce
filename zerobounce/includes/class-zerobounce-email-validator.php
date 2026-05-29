@@ -193,6 +193,7 @@ class Zerobounce_Email_Validator
         // WooCommerce
         if (is_array($validation_forms) && in_array('validation_woocommerce', $validation_forms)) {
             $this->loader->add_filter('woocommerce_after_checkout_validation', $plugin_public, 'woocommerce_validator', 10, 2);
+            $this->loader->add_action('woocommerce_register_post', $plugin_public, 'woocommerce_registration_validator', 10, 3);
         }
 
         // WordPress Post Comments
